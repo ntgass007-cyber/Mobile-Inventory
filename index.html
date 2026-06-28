@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MobiStock — Shop Inventory</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --bg:#0f1117; --surface:#181c27; --card:#1e2335; --border:#2a2f45;
+    --accent:#4f8ef7; --accent2:#7c5ff5; --green:#2ecc87;
+    --orange:#f7a24f; --red:#f75f5f; --text:#e8eaf0; --muted:#7b84a3; --label:#a0a8c0;
+  }
+  body { font-family:'Space Grotesk',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+  header { background:var(--surface); border-bottom:1px solid var(--border); padding:0 32px; display:flex; align-items:center; justify-content:space-between; height:64px; position:sticky; top:0; z-index:100; }
+  .logo { display:flex; align-items:center; gap:10px; font-size:1.2rem; font-weight:700; letter-spacing:-0.02em; }
+  .logo-icon { width:32px; height:32px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .logo span { color:var(--accent); }
+  .header-actions { display:flex; gap:10px; }
+
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; font-family:inherit; font-size:0.85rem; font-weight:600; cursor:pointer; transition:all 0.15s; border:none; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { background:#3a7af0; transform:translateY(-1px); }
+  .btn-ghost { background:transparent; color:var(--label); border:1px solid var(--border); }
+  .btn-ghost:hover { background:var(--card); color:var(--text); }
+  .btn-danger { background:transparent; color:var(--red); border:1px solid var(--red); padding:5px 10px; font-size:0.78rem; }
+  .btn-danger:hover { background:var(--red); color:#fff; }
+  .btn-pdf { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; font-size:0.88rem; padding:9px 20px; }
+  .btn-pdf:hover { opacity:0.9; transform:translateY(-1px); }
+  .btn-edit { background:transparent; color:var(--accent); border:1px solid var(--accent); padding:5px 10px; font-size:0.78rem; }
+  .btn-edit:hover { background:var(--accent); color:#fff; }
+
+  main { padding:28px 32px; max-width:1300px; margin:0 auto; }
+
+  .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:28px; }
+  .stat-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px 20px; }
+  .stat-label { font-size:0.75rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; }
+  .stat-value { font-size:1.8rem; font-weight:700; font-family:'DM Mono',monospace; letter-spacing:-0.02em; }
+  .stat-value.blue { color:var(--accent); }
+  .stat-value.green { color:var(--green); }
+  .stat-value.orange { color:var(--orange); }
+  .stat-value.red { color:var(--red); }
+
+  /* FORM */
+  .form-section { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; margin-bottom:28px; }
+  .form-title { font-size:1rem; font-weight:700; margin-bottom:20px; display:flex; align-items:center; gap:8px; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .form-grid .full { grid-column:span 2; }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:0.75rem; font-weight:600; color:var(--label); text-transform:uppercase; letter-spacing:0.06em; }
+  .field input, .field select {
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:0.9rem;
+    padding:10px 12px; transition:border-color 0.15s; outline:none; width:100%;
+  }
+  .field input:focus, .field select:focus { border-color:var(--accent); }
+  .field select option, .field select optgroup { background:var(--surface); }
+
+  /* TABLE */
+  .table-section { background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .table-header { padding:18px 24px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); }
+  .table-title { font-size:1rem; font-weight:700; }
+  .table-controls { display:flex; gap:10px; align-items:center; }
+  .search-box { background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:0.85rem; padding:8px 12px; outline:none; width:220px; }
+  .search-box:focus { border-color:var(--accent); }
+  .table-wrap { overflow-x:auto; }
+
+  table { width:100%; border-collapse:collapse; font-size:0.88rem; min-width:720px; }
+  thead th { background:var(--surface); padding:12px 14px; text-align:left; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); border-bottom:1px solid var(--border); white-space:nowrap; }
+  tbody tr { border-bottom:1px solid var(--border); transition:background 0.1s; }
+  tbody tr:last-child { border-bottom:none; }
+  tbody tr:hover { background:rgba(79,142,247,0.05); }
+  td { padding:12px 14px; color:var(--text); vertical-align:middle; }
+  td.mono { font-family:'DM Mono',monospace; font-size:0.85rem; }
+
+  tr.cat-header td { background:rgba(79,142,247,0.1); color:var(--accent); font-weight:700; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.07em; padding:8px 14px; border-bottom:1px solid var(--border); }
+  tr.cat-total td { background:rgba(79,142,247,0.05); color:var(--label); font-size:0.82rem; font-weight:600; padding:8px 14px; border-top:1px solid var(--border); border-bottom:2px solid var(--border); }
+  tr.grand-total td { background:rgba(46,204,135,0.08); color:var(--green); font-weight:700; font-size:0.88rem; padding:12px 14px; border-top:2px solid rgba(46,204,135,0.4); }
+
+  .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; white-space:nowrap; }
+  .badge-good { background:rgba(46,204,135,0.15); color:var(--green); }
+  .badge-low  { background:rgba(247,162,79,0.15);  color:var(--orange); }
+  .badge-out  { background:rgba(247,95,95,0.15);   color:var(--red); }
+
+  .empty-state { padding:60px 20px; text-align:center; color:var(--muted); }
+  .empty-state .icon { font-size:3rem; margin-bottom:12px; }
+  .empty-state p { font-size:0.9rem; }
+  .actions-cell { display:flex; gap:6px; }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px; width:520px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+  .modal-title { font-size:1.05rem; font-weight:700; margin-bottom:20px; display:flex; align-items:center; gap:8px; }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+  .modal-grid .span2 { grid-column:span 2; }
+  .modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+
+  .toast { position:fixed; bottom:24px; right:24px; background:var(--green); color:#fff; padding:12px 20px; border-radius:10px; font-size:0.88rem; font-weight:600; opacity:0; transform:translateY(12px); transition:all 0.25s; z-index:500; pointer-events:none; }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  @media (max-width:700px) { .stats-row { grid-template-columns:1fr 1fr; } main { padding:16px; } header { padding:0 16px; } .search-box { width:150px; } }
+</style>
+</head>
+<body>
+
+<!-- Brand datalist -->
+<datalist id="brand-list">
+  <option>Samsung</option><option>Apple</option><option>Xiaomi</option><option>Redmi</option>
+  <option>POCO</option><option>Realme</option><option>OnePlus</option><option>Vivo</option>
+  <option>OPPO</option><option>iQOO</option><option>Motorola</option><option>Nokia</option>
+  <option>Nothing</option><option>Infinix</option><option>Tecno</option><option>Itel</option>
+  <option>Lava</option><option>Micromax</option><option>Google</option><option>Huawei</option>
+  <option>LG</option><option>Sony</option><option>TCL</option><option>Hisense</option>
+  <option>Vu</option><option>Thomson</option><option>Panasonic</option><option>Toshiba</option>
+  <option>Haier</option><option>Whirlpool</option><option>Godrej</option><option>Voltas</option>
+  <option>Blue Star</option><option>Daikin</option><option>Hitachi</option><option>Carrier</option>
+  <option>Lloyd</option><option>IFB</option><option>Videocon</option><option>BPL</option>
+  <option>Bajaj</option><option>Crompton</option><option>Havells</option><option>Orient</option>
+  <option>Usha</option><option>V-Guard</option><option>Bosch</option><option>Philips</option>
+  <option>Kent</option><option>Eureka Forbes</option><option>A.O. Smith</option>
+  <option>HP</option><option>Dell</option><option>Lenovo</option><option>Asus</option>
+  <option>Acer</option><option>MSI</option><option>TP-Link</option><option>D-Link</option>
+  <option>Netgear</option><option>Zebronics</option><option>Intex</option><option>APC</option>
+  <option>Luminous</option><option>Microtek</option><option>boAt</option><option>JBL</option>
+  <option>Bose</option><option>Sennheiser</option><option>Noise</option><option>Skullcandy</option>
+  <option>PTron</option><option>Fire-Boltt</option><option>Fastrack</option><option>Ambrane</option>
+</datalist>
+
+<!-- Category datalist -->
+<datalist id="cat-list">
+  <option>Smartphone</option><option>Feature Phone</option><option>Tablet</option>
+  <option>Earphone / TWS</option><option>Smartwatch / Band</option>
+  <option>Charger / Adapter</option><option>Cable / Wire</option>
+  <option>Cover / Case</option><option>Screen Guard</option>
+  <option>Power Bank</option><option>Memory Card / Pen Drive</option>
+  <option>Bluetooth Speaker</option>
+  <option>Television (TV)</option><option>Air Conditioner (AC)</option>
+  <option>Refrigerator</option><option>Washing Machine</option>
+  <option>Vacuum Cleaner</option><option>Microwave / OTG</option>
+  <option>Mixer / Grinder</option><option>Water Purifier (RO)</option>
+  <option>Fan / Cooler</option><option>Iron / Steam Iron</option>
+  <option>Induction Cooktop</option><option>Geyser / Water Heater</option>
+  <option>Laptop</option><option>Desktop / PC</option>
+  <option>Printer / Scanner</option><option>Router / Modem</option>
+  <option>UPS / Inverter</option><option>CCTV / Camera</option>
+  <option>Spare Part</option><option>Other</option>
+</datalist>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏪</div>
+    Mobi<span>Stock</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost" onclick="clearAll()">🗑 Clear All</button>
+    <button class="btn btn-pdf" onclick="downloadPDF()">⬇ Download PDF</button>
+  </div>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Total Products</div><div class="stat-value blue" id="stat-total">0</div></div>
+    <div class="stat-card"><div class="stat-label">Total Units</div><div class="stat-value green" id="stat-stock">0</div></div>
+    <div class="stat-card"><div class="stat-label">Inventory Value</div><div class="stat-value orange" id="stat-value">₹0</div></div>
+  </div>
+
+  <!-- Add Form -->
+  <div class="form-section">
+    <div class="form-title">➕ Add Item</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Product Name</label>
+        <input type="text" id="inp-name" placeholder="e.g. Samsung Galaxy S24 Ultra" />
+      </div>
+      <div class="field">
+        <label>Brand &nbsp;<small style="color:var(--muted);font-weight:400;text-transform:none">(type or pick)</small></label>
+        <input type="text" id="inp-brand" list="brand-list" placeholder="e.g. Samsung" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Category &nbsp;<small style="color:var(--muted);font-weight:400;text-transform:none">(type or pick)</small></label>
+        <input type="text" id="inp-cat" list="cat-list" placeholder="e.g. Smartphone" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="inp-qty" placeholder="0" min="0" />
+      </div>
+      <div class="field">
+        <label>Price per Unit (₹)</label>
+        <input type="number" id="inp-price" placeholder="0" min="0" />
+      </div>
+      <div class="field">
+        <label>SKU / Serial No.</label>
+        <input type="text" id="inp-sku" placeholder="Optional" />
+      </div>
+      <div class="field" style="justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="addItem()">➕ Add Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-section">
+    <div class="table-header">
+      <div class="table-title">Inventory — by Category</div>
+      <div class="table-controls">
+        <input class="search-box" type="text" placeholder="🔍 Search products…" oninput="renderTable(this.value)" />
+      </div>
+    </div>
+    <div class="table-wrap" id="table-wrap">
+      <div class="empty-state"><div class="icon">📦</div><p>No items yet. Add your first product above.</p></div>
+    </div>
+  </div>
+</main>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">✏️ Edit Item</div>
+    <div class="modal-grid">
+      <div class="field span2"><label>Product Name</label><input type="text" id="e-name" /></div>
+      <div class="field">
+        <label>Brand <small style="color:var(--muted);font-weight:400;text-transform:none">(type or pick)</small></label>
+        <input type="text" id="e-brand" list="brand-list" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>Category <small style="color:var(--muted);font-weight:400;text-transform:none">(type or pick)</small></label>
+        <input type="text" id="e-cat" list="cat-list" autocomplete="off" />
+      </div>
+      <div class="field"><label>Quantity</label><input type="number" id="e-qty" min="0" /></div>
+      <div class="field"><label>Price per Unit (₹)</label><input type="number" id="e-price" min="0" /></div>
+      <div class="field span2"><label>SKU / Serial No.</label><input type="text" id="e-sku" /></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let inventory = JSON.parse(localStorage.getItem('mobistock_v2') || '[]');
+  let editingId = null;
+  let idCounter = parseInt(localStorage.getItem('mobistock_v2_counter') || '1');
+
+  function save() {
+    localStorage.setItem('mobistock_v2', JSON.stringify(inventory));
+    localStorage.setItem('mobistock_v2_counter', idCounter);
+  }
+
+  function toast(msg, color='#2ecc87') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.style.background = color;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  function stockStatus(qty) {
+    if (qty === 0) return 'out';
+    if (qty < 15)  return 'low';
+    return 'good';
+  }
+  function stockBadge(qty) {
+    const s = stockStatus(qty);
+    if (s==='out')  return '<span class="badge badge-out">Out of Stock</span>';
+    if (s==='low')  return '<span class="badge badge-low">Low Stock</span>';
+    return '<span class="badge badge-good">Good Stock</span>';
+  }
+  function fmt(n) { return '₹' + Number(n).toLocaleString('en-IN'); }
+
+  function addItem() {
+    const name  = document.getElementById('inp-name').value.trim();
+    const brand = document.getElementById('inp-brand').value.trim();
+    const cat   = document.getElementById('inp-cat').value.trim();
+    const qty   = parseInt(document.getElementById('inp-qty').value) || 0;
+    const price = parseFloat(document.getElementById('inp-price').value) || 0;
+    const sku   = document.getElementById('inp-sku').value.trim();
+    if (!name) { toast('Enter product name','#f75f5f'); return; }
+    if (!cat)  { toast('Enter or select a category','#f75f5f'); return; }
+    inventory.push({ id:idCounter++, name, brand, cat, qty, price, sku, added:new Date().toLocaleDateString('en-IN') });
+    save(); renderTable(); updateStats();
+    ['inp-name','inp-brand','inp-cat','inp-sku','inp-qty','inp-price'].forEach(id => document.getElementById(id).value='');
+    toast('✓ Item added');
+  }
+
+  function deleteItem(id) {
+    inventory = inventory.filter(i => i.id !== id);
+    save(); renderTable(); updateStats();
+    toast('Item removed','#f75f5f');
+  }
+
+  function openEdit(id) {
+    const item = inventory.find(i => i.id===id);
+    if (!item) return;
+    editingId = id;
+    document.getElementById('e-name').value  = item.name;
+    document.getElementById('e-brand').value = item.brand||'';
+    document.getElementById('e-cat').value   = item.cat;
+    document.getElementById('e-qty').value   = item.qty;
+    document.getElementById('e-price').value = item.price;
+    document.getElementById('e-sku').value   = item.sku||'';
+    document.getElementById('edit-modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+    editingId = null;
+  }
+
+  function saveEdit() {
+    const item = inventory.find(i => i.id===editingId);
+    if (!item) return;
+    item.name  = document.getElementById('e-name').value.trim();
+    item.brand = document.getElementById('e-brand').value.trim();
+    item.cat   = document.getElementById('e-cat').value.trim();
+    item.qty   = parseInt(document.getElementById('e-qty').value)||0;
+    item.price = parseFloat(document.getElementById('e-price').value)||0;
+    item.sku   = document.getElementById('e-sku').value.trim();
+    save(); closeModal(); renderTable(); updateStats();
+    toast('✓ Updated');
+  }
+
+  function groupByCategory(items) {
+    const map = {};
+    items.forEach(i => { if (!map[i.cat]) map[i.cat]=[]; map[i.cat].push(i); });
+    return map;
+  }
+
+  function renderTable(search='') {
+    const wrap = document.getElementById('table-wrap');
+    const q = search.toLowerCase();
+    const filtered = inventory.filter(i =>
+      i.name.toLowerCase().includes(q) ||
+      (i.brand||'').toLowerCase().includes(q) ||
+      i.cat.toLowerCase().includes(q) ||
+      (i.sku||'').toLowerCase().includes(q)
+    );
+    if (filtered.length===0) {
+      wrap.innerHTML=`<div class="empty-state"><div class="icon">📦</div><p>${search?'No matching items.':'No items yet. Add your first product above.'}</p></div>`;
+      return;
+    }
+    const grouped = groupByCategory(filtered);
+    const cats = Object.keys(grouped).sort();
+    let html = `<table><thead><tr>
+      <th>#</th><th>Product</th><th>Brand</th>
+      <th style="text-align:center">Qty</th>
+      <th style="text-align:right">Price / Unit</th>
+      <th style="text-align:right">Total Value</th>
+      <th>Stock Status</th><th>SKU / Serial</th><th>Added</th><th>Actions</th>
+    </tr></thead><tbody>`;
+    let grandQty=0, grandVal=0, grandCount=0;
+    cats.forEach(cat => {
+      const items = grouped[cat];
+      const catQty = items.reduce((s,i)=>s+i.qty,0);
+      const catVal = items.reduce((s,i)=>s+i.price*i.qty,0);
+      grandQty+=catQty; grandVal+=catVal; grandCount+=items.length;
+      html += `<tr class="cat-header"><td colspan="10">📂 ${cat}</td></tr>`;
+      items.forEach((i,idx) => {
+        html += `<tr>
+          <td class="mono" style="text-align:center;color:var(--muted)">${idx+1}</td>
+          <td style="font-weight:600">${i.name}</td>
+          <td>${i.brand||'—'}</td>
+          <td class="mono" style="text-align:center">${i.qty}</td>
+          <td class="mono" style="text-align:right">${fmt(i.price)}</td>
+          <td class="mono" style="text-align:right">${fmt(i.price*i.qty)}</td>
+          <td>${stockBadge(i.qty)}</td>
+          <td style="color:var(--muted)">${i.sku||'—'}</td>
+          <td style="color:var(--muted);font-size:0.8rem">${i.added}</td>
+          <td><div class="actions-cell">
+            <button class="btn btn-edit" onclick="openEdit(${i.id})">Edit</button>
+            <button class="btn btn-danger" onclick="deleteItem(${i.id})">Del</button>
+          </div></td>
+        </tr>`;
+      });
+      html += `<tr class="cat-total">
+        <td colspan="3" style="text-align:right;padding-right:20px">Category Total &nbsp;•&nbsp; ${items.length} item${items.length>1?'s':''}</td>
+        <td class="mono" style="text-align:center;font-weight:700">${catQty}</td>
+        <td></td>
+        <td class="mono" style="text-align:right;font-weight:700">${fmt(catVal)}</td>
+        <td colspan="4"></td>
+      </tr>`;
+    });
+    html += `<tr class="grand-total">
+      <td colspan="3" style="text-align:right;padding-right:20px">GRAND TOTAL &nbsp;•&nbsp; ${grandCount} products &nbsp;•&nbsp; ${cats.length} categories</td>
+      <td class="mono" style="text-align:center">${grandQty}</td>
+      <td></td>
+      <td class="mono" style="text-align:right">${fmt(grandVal)}</td>
+      <td colspan="4"></td>
+    </tr>`;
+    html += `</tbody></table>`;
+    wrap.innerHTML = html;
+  }
+
+  function updateStats() {
+    const total = inventory.length;
+    const stock = inventory.reduce((s,i)=>s+i.qty,0);
+    const val   = inventory.reduce((s,i)=>s+i.price*i.qty,0);
+    const low   = inventory.filter(i=>i.qty<15).length;
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-stock').textContent = stock;
+    document.getElementById('stat-value').textContent = '₹'+val.toLocaleString('en-IN');
+    document.getElementById('stat-low').textContent   = low;
+  }
+
+  function clearAll() {
+    if (!inventory.length) return;
+    if (!confirm('Clear all inventory? This cannot be undone.')) return;
+    inventory=[]; save(); renderTable(); updateStats();
+    toast('Inventory cleared','#f75f5f');
+  }
+
+  /* ═══════════════════════════════════════════════
+     PDF — category-wise, clean totals design
+  ═══════════════════════════════════════════════ */
+  function downloadPDF() {
+    if (!inventory.length) { toast('No items to export','#f75f5f'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const MARGIN = 36;
+
+    const now     = new Date();
+    const dateStr = now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    const timeStr = now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+
+    const totalVal   = inventory.reduce((s,i)=>s+i.price*i.qty,0);
+    const totalUnits = inventory.reduce((s,i)=>s+i.qty,0);
+
+    /* ── Title bar ── */
+    doc.setFillColor(23,37,84);
+    doc.rect(0,0,W,48,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(255,255,255);
+    doc.text('Shop Inventory Report', MARGIN, 31);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(180,200,255);
+    doc.text('Generated: '+dateStr+'   '+timeStr, W-MARGIN, 31, {align:'right'});
+
+    /* ── 3 KPI boxes ── */
+    const kpis = [
+      {label:'Total Products',      value:String(inventory.length),               fill:[239,246,255], border:[147,197,253], txt:[30,64,175]},
+      {label:'Total Units in Stock',value:String(totalUnits),                      fill:[240,253,244], border:[134,239,172], txt:[21,128,61]},
+      {label:'Inventory Value',     value:'Rs.'+totalVal.toLocaleString('en-IN'),  fill:[255,251,235], border:[253,211,77],  txt:[146,64,14]},
+    ];
+    const gap=14, kW=(W-MARGIN*2-gap*2)/3;
+    kpis.forEach((k,idx)=>{
+      const x = MARGIN+idx*(kW+gap);
+      doc.setFillColor(...k.fill); doc.setDrawColor(...k.border); doc.setLineWidth(0.8);
+      doc.roundedRect(x,58,kW,34,3,3,'FD');
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(100,100,100);
+      doc.text(k.label, x+10, 71);
+      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...k.txt);
+      doc.text(k.value, x+10, 85);
+    });
+
+    /* ── Build table body grouped by category ── */
+    // Columns: # | Product | Brand | Qty | Price | Total Value | SKU | Date
+    const colW = {0:20, 1:185, 2:85, 3:38, 4:82, 5:88, 6:90, 7:72};
+
+    const grouped = groupByCategory(inventory);
+    const cats = Object.keys(grouped).sort();
+    const body = [];
+    let grandQty=0, grandVal=0, grandCount=0;
+
+    cats.forEach(cat => {
+      const items = grouped[cat];
+      const catQty = items.reduce((s,i)=>s+i.qty,0);
+      const catVal = items.reduce((s,i)=>s+i.price*i.qty,0);
+      grandQty+=catQty; grandVal+=catVal; grandCount+=items.length;
+
+      body.push({type:'CAT_HEADER', label:cat, count:items.length});
+      items.forEach((item,idx)=>{
+        body.push({
+          type:'ROW',
+          data:[idx+1, item.name, item.brand||'-', item.qty,
+                'Rs.'+Number(item.price).toLocaleString('en-IN'),
+                'Rs.'+(item.price*item.qty).toLocaleString('en-IN'),
+                item.sku||'-', item.added]
+        });
+      });
+      body.push({type:'CAT_TOTAL', label:cat, count:items.length, qty:catQty, val:catVal});
+    });
+    body.push({type:'GRAND_TOTAL', count:grandCount, cats:cats.length, qty:grandQty, val:grandVal});
+
+    /* Convert to flat rows for autoTable */
+    const flatRows = body.map(r => {
+      if (r.type==='CAT_HEADER')  return ['CAT_HEADER', r.label+'||'+r.count,'','','','','',''];
+      if (r.type==='CAT_TOTAL')   return ['CAT_TOTAL','','',r.qty,'','Rs.'+r.val.toLocaleString('en-IN'),'Cat: '+r.label,''];
+      if (r.type==='GRAND_TOTAL') return ['GRAND_TOTAL','','',r.qty,'','Rs.'+r.val.toLocaleString('en-IN'),'GRAND',''];
+      return r.data;
+    });
+
+    doc.autoTable({
+      startY: 104,
+      head: [['#','Product Name','Brand','Qty','Price (Rs.)','Total Value','SKU / Serial','Date Added']],
+      body: flatRows,
+      theme: 'grid',
+      tableWidth: W - MARGIN*2,
+      styles: {
+        font:'helvetica', fontSize:8,
+        cellPadding:{top:4,bottom:4,left:5,right:5},
+        textColor:[30,30,30],
+        lineColor:[210,218,230], lineWidth:0.35,
+        overflow:'linebreak',
+      },
+      headStyles: {
+        fillColor:[23,37,84], textColor:[255,255,255],
+        fontStyle:'bold', fontSize:7.5, halign:'center', valign:'middle',
+        cellPadding:{top:5,bottom:5,left:5,right:5},
+      },
+      alternateRowStyles: { fillColor:[249,251,255] },
+      bodyStyles:         { fillColor:[255,255,255] },
+      columnStyles: {
+        0: {cellWidth:colW[0], halign:'center'},
+        1: {cellWidth:colW[1], halign:'left'},
+        2: {cellWidth:colW[2], halign:'left'},
+        3: {cellWidth:colW[3], halign:'center'},
+        4: {cellWidth:colW[4], halign:'right'},
+        5: {cellWidth:colW[5], halign:'right'},
+        6: {cellWidth:colW[6], halign:'left'},
+        7: {cellWidth:colW[7], halign:'center'},
+      },
+      didParseCell(data) {
+        if (data.section !== 'body') return;
+        const r0 = data.row.raw[0];
+
+        /* ── Category header ── */
+        if (r0 === 'CAT_HEADER') {
+          const parts = data.row.raw[1].split('||');
+          const catName = parts[0], cnt = parts[1];
+          data.cell.styles.fillColor  = [23,37,84];
+          data.cell.styles.textColor  = [255,255,255];
+          data.cell.styles.fontStyle  = 'bold';
+          data.cell.styles.fontSize   = 8.5;
+          data.cell.styles.cellPadding = {top:5,bottom:5,left:8,right:5};
+          if (data.column.index === 0) {
+            data.cell.colSpan = 8;
+            data.cell.styles.halign = 'left';
+            data.cell.text = [catName + '   (' + cnt + ' item' + (parseInt(cnt)>1?'s':'') + ')'];
+          } else {
+            data.cell.text = [''];
+          }
+          return;
+        }
+
+        /* ── Category total ── */
+        if (r0 === 'CAT_TOTAL') {
+          data.cell.styles.fillColor  = [235,241,255];
+          data.cell.styles.lineColor  = [147,197,253];
+          data.cell.styles.fontStyle  = 'bold';
+          data.cell.styles.fontSize   = 8;
+          data.cell.styles.textColor  = [30,64,175];
+          // col 0 = label spanning cols 0-2
+          if (data.column.index === 0) {
+            data.cell.colSpan = 3;
+            data.cell.styles.halign = 'right';
+            const catLabel = data.row.raw[6].replace('Cat: ','');
+            data.cell.text = ['Subtotal — ' + catLabel];
+          } else if (data.column.index === 3) {
+            data.cell.styles.halign = 'center';
+          } else if (data.column.index === 5) {
+            data.cell.styles.halign = 'right';
+          } else if (data.column.index === 1 || data.column.index === 2) {
+            data.cell.text = [''];
+          } else if (data.column.index === 4 || data.column.index === 6 || data.column.index === 7) {
+            data.cell.text = [''];
+          }
+          return;
+        }
+
+        /* ── Grand total ── */
+        if (r0 === 'GRAND_TOTAL') {
+          data.cell.styles.fillColor  = [20,83,45];
+          data.cell.styles.textColor  = [220,252,231];
+          data.cell.styles.fontStyle  = 'bold';
+          data.cell.styles.fontSize   = 9;
+          data.cell.styles.lineColor  = [21,128,61];
+          if (data.column.index === 0) {
+            data.cell.colSpan = 3;
+            data.cell.styles.halign = 'right';
+            data.cell.text = ['GRAND TOTAL'];
+          } else if (data.column.index === 3) {
+            data.cell.styles.halign = 'center';
+          } else if (data.column.index === 5) {
+            data.cell.styles.halign = 'right';
+            data.cell.styles.fontSize = 10;
+          } else if (data.column.index === 1 || data.column.index === 2) {
+            data.cell.text = [''];
+          } else if (data.column.index === 4 || data.column.index === 6 || data.column.index === 7) {
+            data.cell.text = [''];
+          }
+          return;
+        }
+
+        /* ── Normal row ── */
+        if (data.column.index === 1) data.cell.styles.fontStyle = 'bold';
+      },
+      margin: {left:MARGIN, right:MARGIN},
+    });
+
+    /* ── Footer ── */
+    const pages = doc.internal.getNumberOfPages();
+    const pH = doc.internal.pageSize.getHeight();
+    for (let p=1; p<=pages; p++) {
+      doc.setPage(p);
+      doc.setFillColor(23,37,84);
+      doc.rect(0, pH-20, W, 20, 'F');
+      doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(180,200,255);
+      doc.text('MobiStock — Confidential Inventory Report', MARGIN, pH-7);
+      doc.text('Page '+p+' of '+pages, W-MARGIN, pH-7, {align:'right'});
+    }
+
+    doc.save('Inventory_'+dateStr.replace(/ /g,'_')+'.pdf');
+    toast('✓ PDF downloaded');
+  }
+
+  document.getElementById('edit-modal').addEventListener('click', function(e) {
+    if (e.target===this) closeModal();
+  });
+  document.getElementById('inp-sku').addEventListener('keydown', e => {
+    if (e.key==='Enter') addItem();
+  });
+
+  renderTable();
+  updateStats();
+</script>
+</body>
+</html>
